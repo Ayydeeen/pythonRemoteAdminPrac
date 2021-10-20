@@ -1,36 +1,40 @@
+  GNU nano 5.1                                                                                                                                                           serv.py                                                                                                                                                                     
 import socket
-import time
+import os
 
 #Variable Declaration
-server = "127.0.0.1"
-port = 4445
+port=4445
 
-#Functions
-def send(msg):
-        s.send(msg.encode("UTF-8"))
+def clear():
+        os.system('cls' if os.name=='nt' else 'clear')
 
-def getInstruction():
-        while True:
-                msg = s.recv(4096)
-                cmd = msg.decode("UTF-8")
 
-                if (cmd) == "test":
-                        try:
-                                send("[OK]")
-                        except:
-                                print("error on send")
-                                pass
-
-#Connection
-s = socket.socket((socket.AF_INET), socket.SOCK_STREAM)
+#Begin Listening for Connection
+serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 host = socket.gethostname()
-connected = False
+serversocket.bind((host,port))
+serversocket.listen(1)
 
-while connected == False:
-        try:
-                s.connect((host, port))
-                connection = True
-        except:
-                time.sleep(30)
-print("connected")
-getInstructions()
+clear()
+
+print("Basic Remote Administration Tool")
+clientsocket, addr = serversocket.accept()
+print("Connection from: " + str(addr))
+
+while True:
+        cmd = input("$: ")
+
+        if cmd == "help":
+                print("Available Commands:    ")
+                print("    test : Test server connection to client")
+
+        elif cmd == "exit":
+                clientsocket.shutdown(socket.SHUT_RDWR)
+                clientsocket.close()
+
+        else:
+                ecmd = cmd.encode("UTF-8")
+                clientsocket.send(ecmd)
+
+                ercv = clientsocket.recv(4096)
+                print(ercv.decode("UTF-8"))
