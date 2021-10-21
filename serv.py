@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import selectors
 import socket
+import types
 
 host="0.0.0.0"
 port=65432
