@@ -45,7 +45,7 @@ class Message:
                         print("sending", repr(self._send_buffer), "to", self.addr)
                         try:
                                 sent = self.sock.send(self._send_buffer)
-                        except:
+                        except BlockingIOError:
                                 pass
                         else:
                                 self._send_buffer = self._send_buffer[sent:]
