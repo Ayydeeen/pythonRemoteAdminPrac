@@ -40,6 +40,16 @@ class Message:
                 else:
                         self._send_buffer = self._send_buffer[send:]
 
+        def _write(self):
+                if self._send_buffer:
+                        print("sending", repr(self._send_buffer), "to", self.addr)
+                        try:
+                                sent = self.sock.send(self._send_buffer)
+                        except:
+                                pass
+                        else:
+                                self._send_buffer = self._send_buffer[sent:]
+                        
         def _json_encode(self, obj, encoding):
                 return json.dumps(obj, ensure_ascii=False).encode(encoding)
 
