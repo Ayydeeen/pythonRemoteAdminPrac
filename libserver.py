@@ -11,11 +11,12 @@ request_search = {
 }
 
 class Message:
-    def __init__(self, selector, sock, addr, request):
+    
+    def __init__(self, selector, sock, addr, request): #Used to register w/ data from accept_wrapper() function
         self.selector = selector
         self.sock = sock
         self.addr = addr
-        self._recv_buffer = b""
+        self._recv_buffer = b"" 
         self._send_buffer = b""
         self._jsonheader_len = None
         self.jsonheader = None
@@ -108,6 +109,7 @@ class Message:
             if mask & selectors.EVENT_WRITE:
                 self.write()
 
+
     def read(self):
         self._read()
     
@@ -122,11 +124,13 @@ class Message:
             if self.response is None:
                 self.process_response()
 
+
     def write(self):
         if self.request:
             if not self.response_created:
                 self.create_response()
         self._write()
+
 
     def close(self):
         print("Closing connection to:", self.addr)
@@ -137,28 +141,41 @@ class Message:
         finally:
             self.sock = None #Delete reference to socket object for garbage collection
 
+
     def process_protoheader(self):
-        hdrlen = 2
-        if len(self._recv_buffer) >= hdrlen:
-            self._jsonheader_len = struct.unpack(">h", self._recv_buffer[:hdrlen])[0]
-            self._recv_buffer = self._recv_buffer[hdrlen:]
+        hdrlen = 2 #Proto Header is 2 bytes long
+        
+        if len(self._recv_buffer) >= hdrlen: #If there have been more than 2 bytes received
+            
+            self._jsonheader_len = struct.unpack(">h", self._recv_buffer[:hdrlen])[0] #Unpack first two bytes (proto header) Big-Endian received data and store in _jsonheader_len
+            
+            self._recv_buffer = self._recv_buffer[hdrlen:] #Remove first two bytes from received data 
+
 
     def process_jsonheader(self):
-        hdrlen = self._jsonheader_len
-        if len(self._recv_buffer) >= hdrlen:
-            self.jsonheader = self._json_decode(self._recv_buffer[:hdrlen], "utf-8")
-            self._recv_buffer = self._recv_buffer[hdrlen:]
-            for reqhdr in ("byteorder", "content-length", "content-type", "content-encoding"):
-                if reqhdr not in self.jsonheader:
+        hdrlen = self._jsonheader_len #Utilize value from process_protoheader()
+        
+        if len(self._recv_buffer) >= hdrlen: #Check to see if we have received data that is at least amount specified by _jsonheader_len
+ 
+            self.jsonheader = self._json_decode(self._recv_buffer[:hdrlen], "utf-8") #Unpack first-_jsonheader_len bytes from received data
+            
+            self._recv_buffer = self._recv_buffer[hdrlen:] #Remove json header from received data
+            
+            for reqhdr in ("byteorder", "content-length", "content-type", "content-encoding"): #Check to see that all necessary json data is present
+                
+                if reqhdr not in self.jsonheader: #Raise error if value missing
                     raise ValueError('Missing required header "[reqhdr}".')
 
     def process_response(self):
-        contact_len = self.jsonheader["content-length"]
-        if not len(self._recv_buffer) >= content_len:
+        
+        contact_len = self.jsonheader["content-length"] #Grab content_length from jsonheader
+        if not len(self._recv_buffer) >= content_len: #Check to see if we have received data that is at least amount specified by content_length
             return
-        data = self._recv_buffer[:content_len]
-        self._recv_buffer = self._recv_buffer[content_len:]
-        if self.jsonheader["content-type"] == "text/json":
+        
+        data = self._recv_buffer[:content_len] #Variable to store content data
+        self._recv_buffer = self._recv_buffer[content_len:] #Remove content data from received data
+        
+        if self.jsonheader["content-type"] == "text/json": #Process Data and set selector event to Write mode
             encoding = self.jsonheader["content-encoding"]
             self.request = self._json_decode(data, encoding)
             print("received request", repr(self.request), "from", self.addr)
