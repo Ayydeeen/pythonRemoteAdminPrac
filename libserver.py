@@ -12,7 +12,7 @@ request_search = {
 
 class Message:
     
-    def __init__(self, selector, sock, addr, request): #Used to register w/ data from accept_wrapper() function
+    def __init__(self, selector, sock, addr): #Used to register w/ data from accept_wrapper() function
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -26,11 +26,11 @@ class Message:
     def _set_selector_events_mask(self, mode):
         """Set Selector to listen for events: mode is 'r', 'w', or 'rw'."""
         if mode == "r":
-            events = selects.EVENT_READ
+            events = selectors.EVENT_READ
         elif mode == "w":
-            events = selects.EVENT_WRITE
+            events = selectors.EVENT_WRITE
         elif mode == "rw":
-            events = selectos.EVENT_READ | selectors.EVENT_WRITE
+            events = selectors.EVENT_READ | selectors.EVENT_WRITE
         else:
             raise ValueError(f"Invalid events mask mode {repr(mode)}.")
         self.selector.modify(self.sock, events, data=self)
@@ -121,8 +121,8 @@ class Message:
                 self.process_jsonheader()
     
         if self.jsonheader:
-            if self.response is None:
-                self.process_response()
+            if self.request is None:
+                self.process_request()
 
 
     def write(self):
@@ -166,9 +166,9 @@ class Message:
                 if reqhdr not in self.jsonheader: #Raise error if value missing
                     raise ValueError('Missing required header "[reqhdr}".')
 
-    def process_response(self):
+    def process_request(self):
         
-        contact_len = self.jsonheader["content-length"] #Grab content_length from jsonheader
+        content_len = self.jsonheader["content-length"] #Grab content_length from jsonheader
         if not len(self._recv_buffer) >= content_len: #Check to see if we have received data that is at least amount specified by content_length
             return
         
