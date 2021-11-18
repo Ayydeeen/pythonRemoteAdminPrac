@@ -106,8 +106,8 @@ class Message:
     def process_events(self, mask):
         if mask & selectors.EVENT_READ:
             self.read()
-            if mask & selectors.EVENT_WRITE:
-                self.write()
+        if mask & selectors.EVENT_WRITE:
+            self.write()
 
 
     def read(self):
@@ -127,7 +127,7 @@ class Message:
 
     def write(self):
         if self.request:
-            if not self.response_created:
+            if not self.request_created:
                 self.create_response()
         self._write()
 
@@ -167,24 +167,29 @@ class Message:
                     raise ValueError('Missing required header "[reqhdr}".')
 
     def process_request(self):
-        
+        print('process_request')
         content_len = self.jsonheader["content-length"] #Grab content_length from jsonheader
         if not len(self._recv_buffer) >= content_len: #Check to see if we have received data that is at least amount specified by content_length
+            print('notenoughdata.error')
             return
         
         data = self._recv_buffer[:content_len] #Variable to store content data
         self._recv_buffer = self._recv_buffer[content_len:] #Remove content data from received data
-        
+
         if self.jsonheader["content-type"] == "text/json": #Process Data and set selector event to Write mode
+            print('json')
             encoding = self.jsonheader["content-encoding"]
             self.request = self._json_decode(data, encoding)
             print("received request", repr(self.request), "from", self.addr)
         else:
             self.request = data
             print(f'received {self.jsonheader["content-type"]} request from', self.addr)
+        print(self.request)
         self._set_selector_events_mask("w")
+        print('write')
 
     def create_response(self):
+        print('create')
         if self.jsonheader["content-type"] == "text/json":
             response = self._create_response_json_content()
         else:
