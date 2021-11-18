@@ -38,7 +38,10 @@ class Message:
 		except BlockingIOError: #Resource unavailable (errno EWOULDBLOCK)
 			pass
 		else:
-			self._send_buffer = self._send_buffer[send:]
+			if data:
+				self._recv_buffer += data
+			else:
+				raise RuntimeError("Peer closed")
 
 	def _write(self):
 		if self._send_buffer:
@@ -55,6 +58,7 @@ class Message:
 		return json.dumps(obj, ensure_ascii=False).encode(encoding)
 
 	def _json_decode(self, json_bytes, encoding):
+		print(encoding)
 		tiow = io.TextIOWrapper(io.BytesIO(json_bytes), encoding=encoding, newline="")
 		obj = json.load(tiow)
 		tiow.close()
@@ -139,14 +143,29 @@ class Message:
 	def process_protoheader(self):
 		hdrlen = 2
 		if len(self._recv_buffer) >= hdrlen:
-			self._jsonheader_len = struct.unpack(">h", self._recv_buffer[:hdrlen])[0]
+			self._jsonheader_len = struct.unpack(">H", self._recv_buffer[:hdrlen])[0]
 			self._recv_buffer = self._recv_buffer[hdrlen:]
-			for reqhdr in ("byteorder", "content-length", "content-type", "content-encoding"):
+			print(self._recv_buffer)
+
+
+	def process_jsonheader(self):
+		hdrlen = self._jsonheader_len
+		if len(self._recv_buffer) >= hdrlen:
+			self.jsonheader = self._json_decode(self._recv_buffer[:hdrlen], "utf-8")
+			self._recv_buffer[:hdrlen]
+			for reqhdr in (
+				"byteorder",
+				"content-length",
+				"content-type",
+				"content-encoding",
+			):
+				print(reqhdr)
+				print(self.jsonheader)
 				if reqhdr not in self.jsonheader:
 					raise ValueError('Missing required header "[reqhdr}".')
 
 	def process_response(self):
-		contact_len = self.jsonheader["content-length"]
+		content_len = self.jsonheader["content-length"]
 		if not len(self._recv_buffer) >= content_len:
 			return
 		data = self._recv_buffer[:content_len]
