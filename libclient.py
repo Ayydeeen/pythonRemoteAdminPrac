@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import sys
 import selectors
 import json
@@ -82,10 +81,6 @@ class Message:
                 content = self.response
                 result = content.get("result")
                 print(f"got result: {result}")
-
-        def _process_response_binary_content(self):
-                content = self.response
-                print("got response:{repr(content)}")
 
 
         def process_events(self, mask):
@@ -174,10 +169,7 @@ class Message:
                 if self.jsonheader["content-type"] == "text/json":
                         encoding = self.jsonheader["content-encoding"]
                         self.response = self._json_decode(data, encoding)
-                        print("Received response", repr(self.response), "from", self.addr)
+                        print(f"Received response", repr(self.response), "from", self.addr)
                         self._process_response_json_content()
-                else:
-                        self.response = data
-                        print('Received {self.jsonheader["content-type"]} response from', self.addr)
-                        self._process_response_binary_content()
+
                 self.close()
