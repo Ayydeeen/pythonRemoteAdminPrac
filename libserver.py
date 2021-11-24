@@ -81,10 +81,9 @@ class Message:
         action = self.request.get("action")
         if action == "cmd":
             query = self.request.get("value")
-            answer = subprocess.check_output(query, shell=True) #PROBLEM AREA #PROBLEM AREA
-            print(answer)
-            content = {"result": answer} #PROBLEM AREA PROBLEM AREA
-            print(content)
+            answer = subprocess.check_output(query, shell=True) #Run Code from client data using subprocess and return answer
+            answer = answer.decode("utf-8") #Decode subprocess output
+            content = {"result": answer} #Create json result
         else:
             content = {"result": f'Error: invalid action "{action}".'}
         content_encoding = "utf-8"
