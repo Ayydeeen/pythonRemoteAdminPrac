@@ -20,8 +20,9 @@ class Message:
         self.request = None
         self.request_created = False
 
+
+    #Selector Event Modification Function (set socket to r, w, or rw)
     def _set_selector_events_mask(self, mode):
-        """Set Selector to listen for events: mode is 'r', 'w', or 'rw'."""
         if mode == "r":
             events = selectors.EVENT_READ
         elif mode == "w":
@@ -32,7 +33,15 @@ class Message:
             raise ValueError(f"Invalid events mask mode {repr(mode)}.")
         self.selector.modify(self.sock, events, data=self)
 
-    def _read(self):
+    def process_events(self, mask):
+        if mask & selectors.EVENT_READ:
+            self.read()
+        if mask & selectors.EVENT_WRITE:
+            self.write()
+
+
+    def read(self):
+        #Read raw data from socket and save to self._recv_buffer
         try:
             data = self.sock.recv(4096)
         except BlockingIOError: #Resource unavailable (errno EWOULDBLOCK)
@@ -42,68 +51,8 @@ class Message:
                 self._recv_buffer += data
             else:
                     raise RuntimeError("Peer closed.")
-
-    def _write(self):
-        if self._send_buffer:
-            print("sending", repr(self._send_buffer), "to", self.addr)
-            try:
-                sent = self.sock.send(self._send_buffer)
-            except BlockingIOError:
-                pass
-            else:
-                self._send_buffer = self._send_buffer[sent:]
-                if sent and not self._send_buffer:
-                        self.close()
-
-    def _json_encode(self, obj, encoding):
-        return json.dumps(obj, ensure_ascii=False).encode(encoding)
-    
-    def _json_decode(self, json_bytes, encoding):
-        tiow = io.TextIOWrapper(io.BytesIO(json_bytes), encoding=encoding, newline="")
-        obj = json.load(tiow)
-        tiow.close()
-        return obj
-
-    def _create_message(self, *, content_bytes, content_type, content_encoding):
-        jsonheader = {
-            "byteorder": sys.byteorder,
-            "content-type": content_type,
-            "content-encoding": content_encoding,
-            "content-length": len(content_bytes),
-        }
-        print(jsonheader)
-        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
-        message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
-        return message
-
-    def _create_response_json_content(self):
-        action = self.request.get("action")
-        if action == "cmd":
-            query = self.request.get("value")
-            answer = subprocess.check_output(query, shell=True) #Run Code from client data using subprocess and return answer
-            answer = answer.decode("utf-8") #Decode subprocess output
-            content = {"result": answer} #Create json result
-        else:
-            content = {"result": f'Error: invalid action "{action}".'}
-        content_encoding = "utf-8"
-        response = {
-            "content_bytes": self._json_encode(content, content_encoding),
-            "content_type": "text/json",
-            "content_encoding": content_encoding,
-        }
-        return response
-
-    def process_events(self, mask):
-        if mask & selectors.EVENT_READ:
-            self.read()
-        if mask & selectors.EVENT_WRITE:
-            self.write()
-
-
-    def read(self):
-        self._read()
-    
+        
+        #Process received data using data processing helper functions
         if self._jsonheader_len is None:
             self.process_protoheader()
     
@@ -117,10 +66,22 @@ class Message:
 
 
     def write(self):
+        #Create response (saved to _send_buffer) using create_response() function
         if self.request:
             if not self.request_created:
                 self.create_response()
-        self._write()
+        
+        #Send data saved to _send_buffer from create_response()
+        if self._send_buffer:
+            print("Sending", repr(self._send_buffer), "to", self.addr)
+            try:
+                sent = self.sock.send(self._send_buffer)
+            except BlockingIOError:
+                pass
+            else:
+                self._send_buffer = self._send_buffer[sent:]
+                if sent and not self._send_buffer:
+                        self.close()
 
 
     def close(self):
@@ -132,6 +93,8 @@ class Message:
         finally:
             self.sock = None #Delete reference to socket object for garbage collection
 
+
+#Data Processing Helper Functions --------------------
 
     def process_protoheader(self):
         hdrlen = 2 #Proto Header is 2 bytes long
@@ -168,22 +131,55 @@ class Message:
         self._recv_buffer = self._recv_buffer[content_len:] #Remove content data from received data
 
         if self.jsonheader["content-type"] == "text/json": #Process Data and set selector event to Write mode
-            print('json')
             encoding = self.jsonheader["content-encoding"]
             self.request = self._json_decode(data, encoding)
             print("received request", repr(self.request), "from", self.addr)
         else:
             self.request = data
             print(f'received {self.jsonheader["content-type"]} request from', self.addr)
-        print(self.request)
-        self._set_selector_events_mask("w")
-        print('write')
+        self._set_selector_events_mask("w") #Set selector socket to write mode and initialize Write() function
 
     def create_response(self):
-        print('create')
         if self.jsonheader["content-type"] == "text/json":
             response = self._create_response_json_content()
         message = self._create_message(**response)
         self.response_created = True
         self._send_buffer += message
 
+    def _json_encode(self, obj, encoding):
+        return json.dumps(obj, ensure_ascii=False).encode(encoding)
+    
+    def _json_decode(self, json_bytes, encoding):
+        tiow = io.TextIOWrapper(io.BytesIO(json_bytes), encoding=encoding, newline="")
+        obj = json.load(tiow)
+        tiow.close()
+        return obj
+
+    def _create_message(self, *, content_bytes, content_type, content_encoding):
+        jsonheader = {
+            "byteorder": sys.byteorder,
+            "content-type": content_type,
+            "content-encoding": content_encoding,
+            "content-length": len(content_bytes),
+        }
+        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
+        message_hdr = struct.pack(">H", len(jsonheader_bytes))
+        message = message_hdr + jsonheader_bytes + content_bytes
+        return message
+
+    def _create_response_json_content(self):
+        action = self.request.get("action")
+        if action == "cmd":
+            query = self.request.get("value")
+            answer = subprocess.check_output(query, shell=True) #Run Code from client data using subprocess and return answer
+            answer = answer.decode("utf-8") #Decode subprocess output
+            content = {"result": answer} #Create JSON result
+        else:
+            content = {"result": f'Error: invalid action "{action}".'}
+        content_encoding = "utf-8"
+        response = {
+            "content_bytes": self._json_encode(content, content_encoding),
+            "content_type": "text/json",
+            "content_encoding": content_encoding,
+        }
+        return response
