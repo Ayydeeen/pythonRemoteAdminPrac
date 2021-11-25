@@ -5,11 +5,11 @@ import selectors
 import json
 import io
 import struct
-
+from Crypto.PublicKey import RSA
 
 class Message:
     
-    def __init__(self, selector, sock, addr): #Used to register w/ data from accept_wrapper() function
+    def __init__(self, selector, sock, addr, private_key, public_key): #Used to register w/ data from accept_wrapper() function
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -19,6 +19,8 @@ class Message:
         self.jsonheader = None
         self.request = None
         self.request_created = False
+        self.private_key = private_key
+        self.public_key = public_key
 
 
     #Selector Event Modification Function (set socket to r, w, or rw)
@@ -161,7 +163,7 @@ class Message:
             query = self.request.get("value")
             answer = subprocess.check_output(query, shell=True) #Run Code from client data using subprocess and return answer
             answer = answer.decode("utf-8") #Decode subprocess output
-            content = {"result": answer} #Create JSON result
+            content = {"result": str(self.public_key.exportKey())} #Create JSON result
         else:
             content = {"result": f'Error: invalid action "{action}".'}
         content_encoding = "utf-8"
