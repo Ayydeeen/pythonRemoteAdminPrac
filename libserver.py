@@ -39,7 +39,6 @@ class Message:
         if mask & selectors.EVENT_WRITE:
             self.write()
 
-
     def read(self):
         #Read raw data from socket and save to self._recv_buffer
         try:
@@ -83,7 +82,6 @@ class Message:
                 if sent and not self._send_buffer:
                         self.close()
 
-
     def close(self):
         print("Closing connection to:", self.addr)
         try:
@@ -94,8 +92,7 @@ class Message:
             self.sock = None #Delete reference to socket object for garbage collection
 
 
-#Data Processing Helper Functions --------------------
-
+    #Header processing ----------
     def process_protoheader(self):
         hdrlen = 2 #Proto Header is 2 bytes long
         
@@ -104,7 +101,6 @@ class Message:
             self._jsonheader_len = struct.unpack(">h", self._recv_buffer[:hdrlen])[0] #Unpack first two bytes (proto header) Big-Endian received data and store in _jsonheader_len
             
             self._recv_buffer = self._recv_buffer[hdrlen:] #Remove first two bytes from received data 
-
 
     def process_jsonheader(self):
         hdrlen = self._jsonheader_len #Utilize value from process_protoheader()
@@ -139,13 +135,8 @@ class Message:
             print(f'received {self.jsonheader["content-type"]} request from', self.addr)
         self._set_selector_events_mask("w") #Set selector socket to write mode and initialize Write() function
 
-    def create_response(self):
-        if self.jsonheader["content-type"] == "text/json":
-            response = self._create_response_json_content()
-        message = self._create_message(**response)
-        self.response_created = True
-        self._send_buffer += message
 
+    #JSON encoding/decoding functions ------
     def _json_encode(self, obj, encoding):
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
     
@@ -155,17 +146,14 @@ class Message:
         tiow.close()
         return obj
 
-    def _create_message(self, *, content_bytes, content_type, content_encoding):
-        jsonheader = {
-            "byteorder": sys.byteorder,
-            "content-type": content_type,
-            "content-encoding": content_encoding,
-            "content-length": len(content_bytes),
-        }
-        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
-        message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
-        return message
+
+    #Response Creation -----------------
+    def create_response(self):
+        if self.jsonheader["content-type"] == "text/json":
+            response = self._create_response_json_content()
+        message = self._create_message(**response)
+        self.response_created = True
+        self._send_buffer += message
 
     def _create_response_json_content(self):
         action = self.request.get("action")
@@ -183,3 +171,15 @@ class Message:
             "content_encoding": content_encoding,
         }
         return response
+    
+    def _create_message(self, *, content_bytes, content_type, content_encoding):
+        jsonheader = {
+            "byteorder": sys.byteorder,
+            "content-type": content_type,
+            "content-encoding": content_encoding,
+            "content-length": len(content_bytes),
+        }
+        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
+        message_hdr = struct.pack(">H", len(jsonheader_bytes))
+        message = message_hdr + jsonheader_bytes + content_bytes
+        return message
