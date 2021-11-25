@@ -48,7 +48,7 @@ class Message:
             if data:
                 self._recv_buffer += data
             else:
-            raise RuntimeError("Peer closed")
+                raise RuntimeError("Peer closed")
 
         #Process received data using data processing helper functions
         if self._jsonheader_len is None:
@@ -81,7 +81,7 @@ class Message:
             if not self._send_buffer:
                 self._set_selector_events_mask("r") #Set selector to 'Read' mode to get response
 
-     def close(self):
+    def close(self):
         print("Closing connection to:", self.addr)
         try:
             self.selector.unregister(self.sock)
@@ -96,9 +96,6 @@ class Message:
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
 
     def _json_decode(self, json_bytes, encoding):
-        print(encoding)
-        print(json_bytes)
-        print(encoding)
         tiow = io.TextIOWrapper(io.BytesIO(json_bytes), encoding=encoding, newline="")
         obj = json.load(tiow)
         tiow.close()
