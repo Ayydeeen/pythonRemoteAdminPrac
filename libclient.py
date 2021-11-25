@@ -91,6 +91,7 @@ class Message:
             self.sock = None #Delete reference to socket object for garbage collection
 
 
+    #JSON Processing --------------
     def _json_encode(self, obj, encoding):
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
 
@@ -102,18 +103,6 @@ class Message:
         obj = json.load(tiow)
         tiow.close()
         return obj
-
-    def _create_message(self, *, content_bytes, content_type, content_encoding):
-        jsonheader = {
-            "byteorder": sys.byteorder,
-            "content-type": content_type,
-            "content-encoding": content_encoding,
-            "content-length": len(content_bytes),
-        }
-        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
-        message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
-        return message
 
     def _process_response_json_content(self):
         content = self.response
@@ -155,7 +144,7 @@ class Message:
         self.close()
 
 
-    #Message Creation
+    #Message Creation -------------------
     def queue_request(self):
         content = self.request["content"] #Grab content from create_request() in app-client.py
         content_type = self.request["type"] #Grab content_type from create_request() in app-client.py
@@ -179,4 +168,14 @@ class Message:
         self._send_buffer += message
         self._request_queued = True
 
-
+    def _create_message(self, *, content_bytes, content_type, content_encoding):
+        jsonheader = {
+            "byteorder": sys.byteorder,
+            "content-type": content_type,
+            "content-encoding": content_encoding,
+            "content-length": len(content_bytes),
+        }
+        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
+        message_hdr = struct.pack(">H", len(jsonheader_bytes))
+        message = message_hdr + jsonheader_bytes + content_bytes
+        return message
