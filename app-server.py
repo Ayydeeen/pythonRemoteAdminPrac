@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import subprocess
 import sys
@@ -5,18 +6,25 @@ import socket
 import selectors
 import traceback
 import libserver
+from Crypto.PublicKey import RSA
+from Crypto import Random
 
 sel = selectors.DefaultSelector()
 
 def accept_wrapper(sock):
-	conn, addr = sock.accept() #Accept socket connection - ready to read
-	print("Connected:", addr)
+    conn, addr = sock.accept() #Accept socket connection - ready to read
+    print("Connected:", addr)
 
-	conn.setblocking(False) #Accept data from socket connection
+    #Generate private and public keys
+    random_generator = Random.new().read
+    private_key = RSA.generate(1024, random_generator)
+    public_key = private_key.publickey()
 
-	message = libserver.Message(sel, conn, addr) #Register __init__ function in Message class with socket info
+    conn.setblocking(False) #Accept data from socket connection
 
-	sel.register(conn, selectors.EVENT_READ, data=message) #Pass mask, socket, and data to selector
+    message = libserver.Message(sel, conn, addr, private_key, public_key) #Register __init__ function in Message class with socket info
+
+    sel.register(conn, selectors.EVENT_READ, data=message) #Pass mask, socket, and data to selector
 
 if len(sys.argv) != 3:
 	print("usage:", sys.argv[0], "<host> <port>")
