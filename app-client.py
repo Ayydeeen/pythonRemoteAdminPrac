@@ -13,6 +13,11 @@ def create_request(action, value):
             encoding = "utf-8",
             content = dict(action=action, value=value)
         )
+    elif action == "init":
+        return dict(
+            type = "text/json",
+            encoding = "utf-8",
+        )
     else:
         return dict(
             type = "binary/custon-client-binary-type",
