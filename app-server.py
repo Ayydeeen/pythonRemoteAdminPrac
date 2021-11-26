@@ -6,6 +6,7 @@ import socket
 import selectors
 import traceback
 import libserver
+import base64
 from Crypto.PublicKey import RSA
 from Crypto import Random
 
