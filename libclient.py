@@ -19,6 +19,7 @@ class Message:
         self._jsonheader_len = None
         self.jsonheader = None
         self.response = None
+        self.public_key = None
 
     #Selector Event Modification Function (set socket to r, w, or rw)
     def _set_selector_events_mask(self, mode):
@@ -104,11 +105,6 @@ class Message:
         tiow.close()
         return obj
 
-    def _process_response_json_content(self):
-        content = self.response
-        result = content.get("result")
-        print(f"got result: {result}")
-
 
     #Header processing ---------------
     def process_protoheader(self):
@@ -145,23 +141,52 @@ class Message:
 
 
     #Message Creation -------------------
-    def queue_request(self):
-        content = self.request["content"] #Grab content from create_request() in app-client.py
-        content_type = self.request["type"] #Grab content_type from create_request() in app-client.py
-        content_encoding = self.request["encoding"] #Grab content_encoding from create_request() in app-client.py
-
-        if content_type == "text/json":
-            req = {
-                "content_bytes": self._json_encode(content, content_encoding),
-                "content_type": content_type,
-                "content_encoding": content_encoding,
-            }
+    def _process_response_json_content(self):
+        content = self.response
+        if content.get("type") == "init":
+            #base54 decode returned key and set as public key - format for sending data in else statement
+            result = content.get("result")
+            print(result, "RSARSA")
         else:
-            req = {
-                "content_bytes": content,
-                "content_type": content_type,
-                "content_encoding": content_encoding,
-            }
+            result = content.get("result")
+
+        print(f"got result: {result}")
+
+    def queue_request(self):
+        if self.public_key:
+            content = self.request["content"] #Grab content from create_request() in app-client.py
+            content_type = self.request["type"] #Grab content_type from create_request() in app-client.py
+            content_encoding = self.request["encoding"] #Grab content_encoding from create_request() in app-client.py
+
+            if content_type == "text/json":
+                req = {
+                    "content_bytes": self._json_encode(content, content_encoding),
+                    "content_type": content_type,
+                    "content_encoding": content_encoding,
+                }
+            else:
+                req = {
+                    "content_bytes": content,
+                    "content_type": content_type,
+                    "content_encoding": content_encoding,
+                }
+        else:
+            content = dict(action="init", value="pubkey") #Grab content from create_request() in app-client.py
+            content_type = self.request["type"]
+            content_encoding = self.request["encoding"]
+
+            if content_type == "text/json":
+                req = {
+                    "content_bytes": self._json_encode(content, content_encoding),
+                    "content_type": content_type,
+                    "content_encoding": content_encoding,
+                }
+            else:
+                req = {
+                    "content_bytes": content,
+                    "content_type": content_type,
+                    "content_encoding": content_encoding,
+                }
 
         #Create Message
         message = self._create_message(**req)
@@ -179,3 +204,5 @@ class Message:
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
         message = message_hdr + jsonheader_bytes + content_bytes
         return message
+
+
