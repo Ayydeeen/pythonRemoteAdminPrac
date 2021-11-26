@@ -5,6 +5,7 @@ import selectors
 import json
 import io
 import struct
+import base64
 from Crypto.PublicKey import RSA
 
 class Message:
@@ -159,19 +160,29 @@ class Message:
 
     def _create_response_json_content(self):
         action = self.request.get("action")
+
         if action == "cmd":
             query = self.request.get("value")
             answer = subprocess.check_output(query, shell=True) #Run Code from client data using subprocess and return answer
             answer = answer.decode("utf-8") #Decode subprocess output
-            content = {"result": str(self.public_key.exportKey())} #Create JSON result
+            content = {"type": "cmd", "result": str(self.public_key.exportKey())} #Create JSON result
+
+        #Return RSA Public Key
+        elif action == "init":
+            content = base64.encodestring(self.public_key.exportKey(format='PEM')) #Export to PEM and encode to base64 string (removes unsendable characters)
+            content = content.decode("utf-8") #Necessary to send data
+            content = {"type": "init", "result": content}
+            print(content)
+
         else:
             content = {"result": f'Error: invalid action "{action}".'}
-        content_encoding = "utf-8"
+
         response = {
-            "content_bytes": self._json_encode(content, content_encoding),
+            "content_bytes": self._json_encode(content, "utf-8"),
             "content_type": "text/json",
-            "content_encoding": content_encoding,
+            "content_encoding": "utf-8",
         }
+
         return response
     
     def _create_message(self, *, content_bytes, content_type, content_encoding):
