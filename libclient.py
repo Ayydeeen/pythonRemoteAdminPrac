@@ -4,8 +4,8 @@ import selectors
 import json
 import io
 import struct
-
-
+import base64
+from Crypto.PublicKey import RSA
 
 class Message:
     def __init__(self, selector, sock, addr, request): #Used to register w/ data from accept_wrapper() function
@@ -139,21 +139,26 @@ class Message:
 
         self.close()
 
-
-    #Message Creation -------------------
+    #Response content processing
     def _process_response_json_content(self):
         content = self.response
         if content.get("type") == "init":
-            #base54 decode returned key and set as public key - format for sending data in else statement
-            result = content.get("result")
-            print(result, "RSARSA")
+            #base64 decode returned key and set as public key - format for sending data in else statement
+            result = base64.b64decode(content.get("result"))
+            self.public_key = RSA.importKey(result)
+            print(self.public_key)
+            self._request_queued = False
+            self._set_selector_events_mask("w")
+
         else:
             result = content.get("result")
+            print(f"got result: {result}")
 
-        print(f"got result: {result}")
 
+
+    #Message Creation -------------------
     def queue_request(self):
-        if self.public_key:
+        if self.public_key: #Check to see if public key has been received yet, send request to server if not present
             content = self.request["content"] #Grab content from create_request() in app-client.py
             content_type = self.request["type"] #Grab content_type from create_request() in app-client.py
             content_encoding = self.request["encoding"] #Grab content_encoding from create_request() in app-client.py
@@ -171,22 +176,15 @@ class Message:
                     "content_encoding": content_encoding,
                 }
         else:
-            content = dict(action="init", value="pubkey") #Grab content from create_request() in app-client.py
+            content = dict(action="init", value="pubkey") #Action Init and Value Pubkey are queries to prompt server for RSA pubkey
             content_type = self.request["type"]
             content_encoding = self.request["encoding"]
 
-            if content_type == "text/json":
-                req = {
-                    "content_bytes": self._json_encode(content, content_encoding),
-                    "content_type": content_type,
-                    "content_encoding": content_encoding,
-                }
-            else:
-                req = {
-                    "content_bytes": content,
-                    "content_type": content_type,
-                    "content_encoding": content_encoding,
-                }
+            req = {
+                "content_bytes": self._json_encode(content, content_encoding),
+                "content_type": content_type, #pulls 'text/json'
+                "content_encoding": content_encoding, #pulls 'utf-8'
+            }
 
         #Create Message
         message = self._create_message(**req)
